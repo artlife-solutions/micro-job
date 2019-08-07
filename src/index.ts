@@ -53,7 +53,7 @@ export interface IMicroJob extends IMicroService {
      * 
      * @param jobName The name of the job.
      */
-    submitJobs<PayloadT>(jobName: string, payload: PayloadT[]): Promise<void>;
+    submitJobs<PayloadT>(jobName: string, jobs: PayloadT[]): Promise<void>;
 
 }
 
@@ -106,11 +106,11 @@ class MicroJob extends MicroService implements IMicroJob {
      * 
      * @param jobName The name of the job.
      */
-    async submitJobs<PayloadT>(jobName: string, payload: PayloadT[]): Promise<void> {
-        if (payload.length > 0) {
+    async submitJobs<PayloadT>(jobName: string, jobs: PayloadT[]): Promise<void> {
+        if (jobs.length > 0) {
             await this.request.post("job-queue", "/submit-jobs", { 
                 tag: jobName,
-                payload,
+                jobs,
             });
         }
     }
@@ -122,7 +122,6 @@ class MicroJob extends MicroService implements IMicroJob {
         while (true) {
             console.log("Requesting next job.");
             const nextJob = await this.request.get("job-queue", `/pull-job?tag=${this.jobName}`);
-            
             
             if (nextJob.ok) {
                 console.log("Have a job to do.");
