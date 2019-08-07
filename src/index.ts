@@ -122,10 +122,30 @@ class MicroJob extends MicroService implements IMicroJob {
         while (true) {
             console.log("Requesting next job.");
             const nextJob = await this.request.get("job-queue", `/pull-job?tag=${this.jobName}`);
-            console.log(nextJob);
+            
+            
             if (nextJob.ok) {
                 console.log("Have a job to do.");
-                await this.jobFn!(this, nextJob.job);
+                
+                const job: IJob<any> = nextJob.job;
+
+                try {
+                    await this.jobFn!(this, job);
+
+                    //
+                    // Let the job queue know that the job has completed.
+                    //
+                    await this.emit("job-completed", { jobId: job.jobId });
+                }
+                catch (err) {
+                    console.error("Job failed, raising job-failed event.");
+                    console.error(err && err.stack || err);
+            
+                    //
+                    // Let the job queue know that the job has failed.
+                    //
+                    await this.emit("job-failed", { jobId: job.jobId, error: err.toString() });
+                }
             }
             else {
                 console.log("Sleeping.");
