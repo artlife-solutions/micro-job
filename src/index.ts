@@ -121,7 +121,8 @@ class MicroJob extends MicroService implements IMicroJob {
     private async processJobs(): Promise<void> {
         while (true) {
             console.log("Requesting next job.");
-            const nextJob = await this.request.get("job-queue", `/pull-job?tag=${this.jobName}`);
+            const response = await this.request.get("job-queue", `/pull-job?tag=${this.jobName}`);
+            const nextJob = response.data;
             
             if (nextJob.ok) {
                 console.log("Have a job to do.");
