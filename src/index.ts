@@ -162,6 +162,8 @@ class MicroJob extends MicroService implements IMicroJob {
     async start(): Promise<void> {
         await super.start();
 
+        console.log("Starting job processing.");
+
         //TODO: Should have a retry forever function. Need to report an error if can't connect after 5 minutes, also want to exponentially back off.
         retry(() => this.processJobs(), 10000, 1000 * 60)
             .catch(err => {
