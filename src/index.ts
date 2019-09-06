@@ -51,6 +51,33 @@ export interface ISubmitJobsArgs {
     jobs: IJob<any>[];
 }
 
+//
+// Arguments to the job-complete message.
+//
+export interface IJobCompletedArgs {
+
+    //
+    // The ID of the job that was successfully completed.
+    //
+    jobId: string;
+}
+
+//
+// Arguments to the job-failed message.
+//
+export interface IJobFailedArgs {
+
+    //
+    // The ID of the job that failed.
+    //
+    jobId: string;
+
+    //
+    // The error that caused the job failure.
+    //
+    error: any;
+}
+
 /**
  * Configures a microservice.
  */
@@ -166,7 +193,8 @@ class MicroJob extends MicroService implements IMicroJob {
                     //
                     // Let the job queue know that the job has completed.
                     //
-                    await this.emit("job-completed", { jobId: job.jobId });
+                    const jobCompletedArgs: IJobCompletedArgs = { jobId: job.jobId! };
+                    await this.emit("job-completed", jobCompletedArgs);
                 }
                 catch (err) {
                     console.error("Job failed, raising job-failed event.");
@@ -175,7 +203,8 @@ class MicroJob extends MicroService implements IMicroJob {
                     //
                     // Let the job queue know that the job has failed.
                     //
-                    await this.emit("job-failed", { jobId: job.jobId, error: err.toString() });
+                    const jobFailedArgs: IJobFailedArgs = { jobId: job.jobId!, error: err.toString() };
+                    await this.emit("job-failed", jobFailedArgs);
                 }
             }
             else {
