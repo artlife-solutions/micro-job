@@ -75,6 +75,7 @@ export interface IJob<PayloadT> {
     //
     payload: PayloadT;
 }
+
 //
 // Arguments to the job-complete message.
 //
@@ -100,6 +101,21 @@ export interface IJobFailedArgs {
     // The error that caused the job failure.
     //
     error: any;
+}
+
+//
+// Result returned by the pull-job REST API.
+//
+export interface IPullJobResult<PayloadT> {
+    //
+    // Set to true if a job is avaialble for processing.
+    //
+    ok: boolean;
+
+    //
+    // The next job in the queue, if ok is set to true.
+    //
+    job?: IJob<PayloadT>;
 }
 
 /**
@@ -204,12 +220,12 @@ class MicroJob extends MicroService implements IMicroJob {
         while (true) {
             console.log("Requesting next job.");
             const response = await this.request.get("job-queue", `/pull-job?tag=${this.jobName}`);
-            const nextJob = response.data;
+            const pullJobResult: IPullJobResult<any> = response.data;
             
-            if (nextJob.ok) {
+            if (pullJobResult.ok) {
                 console.log("Have a job to do.");
                 
-                const job: IJob<any> = nextJob.job;
+                const job: IJob<any> = pullJobResult.job!;
 
                 try {
                     await this.jobFn!(this, job);
