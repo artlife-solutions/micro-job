@@ -7,14 +7,9 @@ import { MicroService, IMicroServiceConfig, IMicroService, retry } from "@artlif
 const inProduction = process.env.NODE_ENV === "production";
 
 //
-// Defines a job to be processed.
+// Defines a job that can be submitted.
 //
-export interface IJob<PayloadT> {
-    //
-    // The ID of the job itself.
-    //
-    jobId?: string;
-
+export interface ISubmitJob<PayloadT> {
     //
     // The ID of the user who contributed the asset.
     //
@@ -48,9 +43,38 @@ export interface ISubmitJobsArgs {
     //
     // Array of jobs to be submitted.
     //
-    jobs: IJob<any>[];
+    jobs: ISubmitJob<any>[];
 }
 
+//
+// Defines a job that can be pulled and processed.
+//
+export interface IJob<PayloadT> {
+    //
+    // The ID of the job itself.
+    //
+    jobId: string;
+
+    //
+    // The ID of the user who contributed the asset.
+    //
+    userId: string;
+
+    //
+    // The ID of the asset to be classified.
+    //
+    imageId: string;
+
+    //
+    // The ID of the account that owns the asset.
+    //
+    accountId: string;
+
+    //
+    // The job payload.
+    //
+    payload: PayloadT;
+}
 //
 // Arguments to the job-complete message.
 //
@@ -109,7 +133,7 @@ export interface IMicroJob extends IMicroService {
      * 
      * @param jobName The name of the job.
      */
-    submitJobs<PayloadT>(jobName: string, jobs: IJob<PayloadT>[]): Promise<void>;
+    submitJobs<PayloadT>(jobName: string, jobs: ISubmitJob<PayloadT>[]): Promise<void>;
 
 }
 
@@ -163,7 +187,7 @@ class MicroJob extends MicroService implements IMicroJob {
      * @param jobName The name of the job.
      * @param jobs The jobs to submit.
      */
-    async submitJobs<PayloadT>(jobName: string, jobs: IJob<PayloadT>[]): Promise<void> {
+    async submitJobs<PayloadT>(jobName: string, jobs: ISubmitJob<PayloadT>[]): Promise<void> {
         if (jobs.length > 0) {
             const submitJobsArgs: ISubmitJobsArgs = {
                 tag: jobName,
