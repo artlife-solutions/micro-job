@@ -63,7 +63,7 @@ export interface IJob<PayloadT> {
     //
     // The ID of the asset to be classified.
     //
-    imageId: string;
+    assetId: string;
 
     //
     // The ID of the account that owns the asset.
