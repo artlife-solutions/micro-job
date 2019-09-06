@@ -13,7 +13,7 @@ export interface IJob<PayloadT> {
     //
     // The ID of the job itself.
     //
-    jobId: string;
+    jobId?: string;
 
     //
     // The ID of the user who contributed the asset.
@@ -36,6 +36,20 @@ export interface IJob<PayloadT> {
     payload: PayloadT;
 }
 
+//
+// Arguments to the submit-jobs REST API.
+//
+export interface ISubmitJobsArgs {
+    // 
+    // The name of the job.
+    //
+    tag: string;
+
+    //
+    // Array of jobs to be submitted.
+    //
+    jobs: IJob<any>[];
+}
 
 /**
  * Configures a microservice.
@@ -68,7 +82,7 @@ export interface IMicroJob extends IMicroService {
      * 
      * @param jobName The name of the job.
      */
-    submitJobs<PayloadT>(jobName: string, jobs: PayloadT[]): Promise<void>;
+    submitJobs<PayloadT>(jobName: string, jobs: IJob<PayloadT>[]): Promise<void>;
 
 }
 
@@ -120,13 +134,15 @@ class MicroJob extends MicroService implements IMicroJob {
      * The job will be processed at some point in the future after waiting in the queue.
      * 
      * @param jobName The name of the job.
+     * @param jobs The jobs to submit.
      */
-    async submitJobs<PayloadT>(jobName: string, jobs: PayloadT[]): Promise<void> {
+    async submitJobs<PayloadT>(jobName: string, jobs: IJob<PayloadT>[]): Promise<void> {
         if (jobs.length > 0) {
-            await this.request.post("job-queue", "/submit-jobs", { 
+            const submitJobsArgs: ISubmitJobsArgs = {
                 tag: jobName,
                 jobs,
-            });
+            }
+            await this.request.post("job-queue", "/submit-jobs", submitJobsArgs);
         }
     }
 
