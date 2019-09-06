@@ -26,6 +26,16 @@ export interface ISubmitJob<PayloadT> {
     accountId: string;
 
     //
+    // The mimetype of the asset.
+    //
+    mimeType: string;
+
+    //
+    // The encoding of the asset.
+    //
+    encoding: string;
+
+    //
     // The job payload.
     //
     payload: PayloadT;
@@ -69,6 +79,16 @@ export interface IJob<PayloadT> {
     // The ID of the account that owns the asset.
     //
     accountId: string;
+
+    //
+    // The mimetype of the asset.
+    //
+    mimeType: string;
+
+    //
+    // The encoding of the asset.
+    //
+    encoding: string;
 
     //
     // The job payload.
