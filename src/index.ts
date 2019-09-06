@@ -16,6 +16,21 @@ export interface IJob<PayloadT> {
     jobId: string;
 
     //
+    // The ID of the user who contributed the asset.
+    //
+    userId: string;
+
+    //
+    // The ID of the asset to be classified.
+    //
+    imageId: string;
+
+    //
+    // The ID of the account that owns the asset.
+    //
+    accountId: string;
+
+    //
     // The job payload.
     //
     payload: PayloadT;
