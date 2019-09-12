@@ -139,10 +139,6 @@ export interface IMicroJob extends IMicroService {
     registerJob(jobDetails: IJobDetails): Promise<void>;
 }
 
-const defaultConfig: IMicroJobConfig = {
-
-};
-
 //
 // Define the job.
 //
@@ -151,11 +147,6 @@ export interface IJobDetails {
     // Name of the job.
     //
     jobName: string;
-
-    //
-    // Name of the service handling the job (defaults to jobName).
-    //
-    serviceName: string;
 
     //
     // The mimetype of the assets that this job processes.
@@ -183,7 +174,7 @@ class MicroJob extends MicroService implements IMicroJob {
     //
     private jobDetails?: IJobDetails;
 
-    constructor(config?: IMicroJobConfig) {
+    constructor(config: IMicroJobConfig) {
         super(config);
     }
 
@@ -204,12 +195,12 @@ class MicroJob extends MicroService implements IMicroJob {
 
         this.jobDetails = Object.assign({}, jobDetails);
 
-        const { jobName, serviceName, mimeType } = jobDetails;
+        const { jobName, mimeType } = jobDetails;
         const registerJobsArgs: IRegisterJobsArgs = {
             jobs: [
                 {
                     jobName,
-                    serviceName,
+                    serviceName: this.getServiceName(),
                     mimeType,
                 },
             ]
@@ -228,7 +219,7 @@ class MicroJob extends MicroService implements IMicroJob {
 
         while (true) {
             console.log("Requesting next job.");
-            const route = `/request-job?job=${this.jobDetails.jobName}&service=${this.jobDetails.serviceName}&id=${this.getInstanceId()}`;
+            const route = `/request-job?job=${this.jobDetails.jobName}&service=${this.getServiceName()}&id=${this.getInstanceId()}`;
             const response = await this.request.get("job-queue", route);
             const requestJobResult: IRequestJobResult = response.data;
             
@@ -291,6 +282,6 @@ class MicroJob extends MicroService implements IMicroJob {
  * 
  * @param [config] Optional configuration for the microservice.
  */
-export function micro(config?: IMicroJobConfig): IMicroJob {
+export function micro(config: IMicroJobConfig): IMicroJob {
     return new MicroJob(config);
 }
