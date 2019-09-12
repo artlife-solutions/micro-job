@@ -1,6 +1,6 @@
 {
     "name": "@artlife/micro-job",
-    "version": "0.0.14",
+    "version": "0.0.15",
     "description": "A small framework for creating jobs-based microservices.",
     "main": "build/index.js",
     "types": "build/index.d.ts",
@@ -24,7 +24,7 @@
     },
     "homepage": "https://github.com/artlife-solutions/micro-job#readme",
     "dependencies": {
-        "@artlife/micro": "0.0.54"
+        "@artlife/micro": "0.0.57"
     },
     "devDependencies": {
         "@types/express": "^4.17.0",

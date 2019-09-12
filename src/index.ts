@@ -7,59 +7,39 @@ import { MicroService, IMicroServiceConfig, IMicroService, retry } from "@artlif
 const inProduction = process.env.NODE_ENV === "production";
 
 //
-// Defines a job that can be submitted.
+// Arguments to the register-jobs REST API.
 //
-export interface ISubmitJob<PayloadT> {
-    //
-    // The ID of the user who contributed the asset.
-    //
-    userId: string;
-
-    //
-    // The ID of the asset to be classified.
-    //
-    assetId: string;
-
-    //
-    // The ID of the account that owns the asset.
-    //
-    accountId: string;
-
-    //
-    // The mimetype of the asset.
-    //
-    mimeType: string;
-
-    //
-    // The encoding of the asset.
-    //
-    encoding: string;
-
-    //
-    // The job payload.
-    //
-    payload: PayloadT;
-}
-
-//
-// Arguments to the submit-jobs REST API.
-//
-export interface ISubmitJobsArgs {
+export interface IRegisterJobArgs {
     // 
     // The name of the job.
     //
-    tag: string;
+    jobName: string;
 
+    // 
+    // The name of the service handlling the job.
     //
-    // Array of jobs to be submitted.
+    serviceName: string;
+
+    // 
+    // The mimetype of assets the job applies to.
     //
-    jobs: ISubmitJob<any>[];
+    mimeType: string;
 }
 
 //
-// Defines a job that can be pulled and processed.
+// Arguments to the register-jobs REST API.
 //
-export interface IJob<PayloadT> {
+export interface IRegisterJobsArgs {
+    //
+    // Jobs to be registered.
+    //
+    jobs: IRegisterJobArgs[];
+}
+
+//
+// Defines a job that can be requested and processed.
+//
+export interface IJob {
     //
     // The ID of the job itself.
     //
@@ -89,11 +69,6 @@ export interface IJob<PayloadT> {
     // The encoding of the asset.
     //
     encoding: string;
-
-    //
-    // The job payload.
-    //
-    payload: PayloadT;
 }
 
 //
@@ -124,9 +99,9 @@ export interface IJobFailedArgs {
 }
 
 //
-// Result returned by the pull-job REST API.
+// Result returned by the request-job REST API.
 //
-export interface IPullJobResult<PayloadT> {
+export interface IRequestJobResult {
     //
     // Set to true if a job is avaialble for processing.
     //
@@ -135,7 +110,7 @@ export interface IPullJobResult<PayloadT> {
     //
     // The next job in the queue, if ok is set to true.
     //
-    job?: IJob<PayloadT>;
+    job?: IJob;
 }
 
 /**
@@ -148,7 +123,7 @@ export interface IMicroJobConfig extends IMicroServiceConfig {
 /**
  * Defines a function to process a job.
  */
-export type JobFn<PayloadT> = (service: IMicroJob, job: IJob<PayloadT>) => Promise<void>;
+export type JobFn = (service: IMicroJob, job: IJob) => Promise<void>;
 
 /**
  * Interface that represents a particular microservice instance.
@@ -161,21 +136,37 @@ export interface IMicroJob extends IMicroService {
      * 
      * @param jobName The name of the job.
      */
-    registerJob<PayloadT>(jobName: string, jobFn: JobFn<PayloadT>): void;
-
-    /**
-     * Submit a job to the job queue.
-     * The job will be processed at some point in the future after waiting in the queue.
-     * 
-     * @param jobName The name of the job.
-     */
-    submitJobs<PayloadT>(jobName: string, jobs: ISubmitJob<PayloadT>[]): Promise<void>;
-
+    registerJob(jobDetails: IJobDetails): Promise<void>;
 }
 
 const defaultConfig: IMicroJobConfig = {
 
 };
+
+//
+// Define the job.
+//
+export interface IJobDetails {
+    //
+    // Name of the job.
+    //
+    jobName: string;
+
+    //
+    // Name of the service handling the job (defaults to jobName).
+    //
+    serviceName: string;
+
+    //
+    // The mimetype of the assets that this job processes.
+    //
+    mimeType: string;
+
+    //
+    // The function that is executed to process the job.
+    //
+    jobFn: JobFn;
+}
 
 //
 // Class that represents a job-based microservice.
@@ -190,8 +181,7 @@ class MicroJob extends MicroService implements IMicroJob {
     //
     // TODO: Later allow different jobs to be registered.
     //
-    private jobName?: string;
-    private jobFn?: JobFn<any>;
+    private jobDetails?: IJobDetails;
 
     constructor(config?: IMicroJobConfig) {
         super(config);
@@ -203,52 +193,52 @@ class MicroJob extends MicroService implements IMicroJob {
      * 
      * @param jobName The name of the job.
      */
-    registerJob<PayloadT>(jobName: string, jobFn: JobFn<PayloadT>): void {
-        if (this.jobName !== undefined) {
-            throw new Error(`${jobName} has already been registsered. Currently only support registering a single job.`);
+    async registerJob(jobDetails: IJobDetails): Promise<void> {
+        if (this.jobDetails !== undefined) {
+            throw new Error(`${jobDetails.jobName} has already been registered. Currently only support registering a single job.`);
         }
 
         if (this.started) {
             throw new Error(`Please register jobs before calling the 'start' function.`);
         }
 
-        this.jobName = jobName;
-        this.jobFn = jobFn; 
-    }
+        this.jobDetails = Object.assign({}, jobDetails);
 
-    /**
-     * Submit a job to the job queue.
-     * The job will be processed at some point in the future after waiting in the queue.
-     * 
-     * @param jobName The name of the job.
-     * @param jobs The jobs to submit.
-     */
-    async submitJobs<PayloadT>(jobName: string, jobs: ISubmitJob<PayloadT>[]): Promise<void> {
-        if (jobs.length > 0) {
-            const submitJobsArgs: ISubmitJobsArgs = {
-                tag: jobName,
-                jobs,
-            }
-            await this.request.post("job-queue", "/submit-jobs", submitJobsArgs);
+        const { jobName, serviceName, mimeType } = jobDetails;
+        const registerJobsArgs: IRegisterJobsArgs = {
+            jobs: [
+                {
+                    jobName,
+                    serviceName,
+                    mimeType,
+                },
+            ]
         }
+
+        await this.request.post("job-queue", "/register-jobs", registerJobsArgs);
     }
 
     //
     // Start processing jobs.
     //
     private async processJobs(): Promise<void> {
+        if (!this.jobDetails) {
+            throw new Error("Job was not registered, please call registerJob.");
+        }
+
         while (true) {
             console.log("Requesting next job.");
-            const response = await this.request.get("job-queue", `/pull-job?tag=${this.jobName}`);
-            const pullJobResult: IPullJobResult<any> = response.data;
+            const route = `/request-job?job=${this.jobDetails.jobName}&service=${this.jobDetails.serviceName}&id=${this.getInstanceId()}`;
+            const response = await this.request.get("job-queue", route);
+            const requestJobResult: IRequestJobResult = response.data;
             
-            if (pullJobResult.ok) {
+            if (requestJobResult.ok) {
                 console.log("Have a job to do.");
                 
-                const job: IJob<any> = pullJobResult.job!;
+                const job = requestJobResult.job!;
 
                 try {
-                    await this.jobFn!(this, job);
+                    await this.jobDetails!.jobFn(this, job);
 
                     //
                     // Let the job queue know that the job has completed.
