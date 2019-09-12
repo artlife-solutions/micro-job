@@ -206,7 +206,7 @@ class MicroJob extends MicroService implements IMicroJob {
             ]
         }
 
-        await this.request.post("job-queue", "/register-jobs", registerJobsArgs);
+        await retry(() => this.request.post("job-queue", "/register-jobs", registerJobsArgs), 10, 1000);
     }
 
     //
@@ -220,7 +220,7 @@ class MicroJob extends MicroService implements IMicroJob {
         while (true) {
             console.log("Requesting next job.");
             const route = `/request-job?job=${this.jobDetails.jobName}&service=${this.getServiceName()}&id=${this.getInstanceId()}`;
-            const response = await this.request.get("job-queue", route);
+            const response = await retry(() => this.request.get("job-queue", route), 10, 1000);
             const requestJobResult: IRequestJobResult = response.data;
             
             if (requestJobResult.ok) {
