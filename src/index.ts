@@ -9,31 +9,11 @@ const inProduction = process.env.NODE_ENV === "production";
 //
 // Arguments to the register-jobs REST API.
 //
-export interface IRegisterJobArgs {
-    // 
-    // The name of the job.
-    //
-    jobName: string;
-
-    // 
-    // The name of the service handlling the job.
-    //
-    serviceName: string;
-
-    // 
-    // The mimetype of assets the job applies to.
-    //
-    mimeType: string;
-}
-
-//
-// Arguments to the register-jobs REST API.
-//
-export interface IRegisterJobsArgs {
+export interface IRegisterAssetJobsArgs {
     //
     // Jobs to be registered.
     //
-    jobs: IRegisterJobArgs[];
+    jobs: IJobDetails<IJob>[];
 }
 
 //
@@ -44,6 +24,12 @@ export interface IJob {
     // The ID of the job itself.
     //
     jobId: string;
+}
+
+//
+// Defines an asset-based job that can be requested and processed.
+//
+export interface IAssetJob extends IJob {
 
     //
     // The ID of the user who contributed the asset.
@@ -123,7 +109,7 @@ export interface IMicroJobConfig extends IMicroServiceConfig {
 /**
  * Defines a function to process a job.
  */
-export type JobFn = (service: IMicroJob, job: IJob) => Promise<void>;
+export type JobFn<JobT> = (service: IMicroJob, job: JobT) => Promise<void>;
 
 /**
  * Interface that represents a particular microservice instance.
@@ -131,32 +117,44 @@ export type JobFn = (service: IMicroJob, job: IJob) => Promise<void>;
 export interface IMicroJob extends IMicroService {
 
     /**
-     * Register a function to process a named job.
+     * Register a function to process a job.
+     * 
      * This function will be called automatically when pending jobs are available in the job queue.
      * 
      * @param jobName The name of the job.
      */
-    registerJob(jobDetails: IJobDetails): Promise<void>;
+    registerJob<JobT>(jobDetails: IJobDetails<JobT>): Promise<void>;
+
 }
 
 //
 // Define the job.
 //
-export interface IJobDetails {
+export interface IJobDetails<JobT> {
     //
     // Name of the job.
     //
     jobName: string;
 
     //
-    // The mimetype of the assets that this job processes.
+    // Name of the service that handles the job.
     //
-    mimeType: string;
+    serviceName?: string;
 
     //
     // The function that is executed to process the job.
     //
-    jobFn: JobFn;
+    jobFn: JobFn<JobT>;
+}
+
+//
+// Defines an asset-based job.
+//
+export interface IAssetJobDetails extends IJobDetails<IAssetJob> {
+    //
+    // The mimetype of the assets that this job processes.
+    //
+    mimeType: string; //todo: is this needed?
 }
 
 //
@@ -170,9 +168,9 @@ class MicroJob extends MicroService implements IMicroJob {
     private started: boolean = false;
 
     //
-    // TODO: Later allow different jobs to be registered.
+    // Registered jobs.
     //
-    private jobDetails?: IJobDetails;
+    private jobList: IJobDetails<IJob>[] = [];
 
     constructor(config: IMicroJobConfig) {
         super(config);
@@ -184,26 +182,16 @@ class MicroJob extends MicroService implements IMicroJob {
      * 
      * @param jobName The name of the job.
      */
-    async registerJob(jobDetails: IJobDetails): Promise<void> {
-        if (this.jobDetails !== undefined) {
-            throw new Error(`${jobDetails.jobName} has already been registered. Currently only support registering a single job.`);
-        }
-
+    async registerJob<JobT>(jobDetails: IJobDetails<JobT>): Promise<void> {
         if (this.started) {
             throw new Error(`Please register jobs before calling the 'start' function.`);
         }
 
-        this.jobDetails = Object.assign({}, jobDetails);
+        jobDetails = Object.assign({}, jobDetails);
+        jobDetails.serviceName = this.getServiceName();
 
-        const { jobName, mimeType } = jobDetails;
-        const registerJobsArgs: IRegisterJobsArgs = {
-            jobs: [
-                {
-                    jobName,
-                    serviceName: this.getServiceName(),
-                    mimeType,
-                },
-            ]
+        const registerJobsArgs: IRegisterAssetJobsArgs = {
+            jobs: [ jobDetails as any as IJobDetails<IJob> ],
         }
 
         await retry(() => this.request.post("job-queue", "/register-jobs", registerJobsArgs), 10, 1000);
@@ -213,46 +201,42 @@ class MicroJob extends MicroService implements IMicroJob {
     // Start processing jobs.
     //
     private async processJobs(): Promise<void> {
-        if (!this.jobDetails) {
-            throw new Error("Job was not registered, please call registerJob.");
-        }
-
         while (true) {
-            console.log("Requesting next job.");
-            const route = `/request-job?job=${this.jobDetails.jobName}&service=${this.getServiceName()}&id=${this.getInstanceId()}`;
-            const response = await retry(() => this.request.get("job-queue", route), 10, 1000);
-            const requestJobResult: IRequestJobResult = response.data;
-            
-            if (requestJobResult.ok) {
-                console.log("Have a job to do.");
+            for (const jobDetails of this.jobList) {
+                console.log("Requesting next job.");
+                const route = `/request-job?job=${jobDetails.jobName}&service=${this.getServiceName()}&id=${this.getInstanceId()}`;
+                const response = await retry(() => this.request.get("job-queue", route), 10, 1000);
+                const requestJobResult: IRequestJobResult = response.data;                
+                if (requestJobResult.ok) {
+                    console.log("Have a job to do.");
+                    
+                    const job = requestJobResult.job!;
+
+                    try {
+                        await jobDetails.jobFn(this, job);
+
+                        //
+                        // Let the job queue know that the job has completed.
+                        //
+                        const jobCompletedArgs: IJobCompletedArgs = { jobId: job.jobId! };
+                        await this.emit("job-completed", jobCompletedArgs);
+                    }
+                    catch (err) {
+                        console.error("Job failed, raising job-failed event.");
+                        console.error(err && err.stack || err);
                 
-                const job = requestJobResult.job!;
-
-                try {
-                    await this.jobDetails!.jobFn(this, job);
-
-                    //
-                    // Let the job queue know that the job has completed.
-                    //
-                    const jobCompletedArgs: IJobCompletedArgs = { jobId: job.jobId! };
-                    await this.emit("job-completed", jobCompletedArgs);
-                }
-                catch (err) {
-                    console.error("Job failed, raising job-failed event.");
-                    console.error(err && err.stack || err);
-            
-                    //
-                    // Let the job queue know that the job has failed.
-                    //
-                    const jobFailedArgs: IJobFailedArgs = { jobId: job.jobId!, error: err.toString() };
-                    await this.emit("job-failed", jobFailedArgs);
+                        //
+                        // Let the job queue know that the job has failed.
+                        //
+                        const jobFailedArgs: IJobFailedArgs = { jobId: job.jobId!, error: err.toString() };
+                        await this.emit("job-failed", jobFailedArgs);
+                    }
                 }
             }
-            else {
-                console.log("Sleeping.");
-                console.log("Waiting for next job.");
-                await this.waitForOneEvent("jobs-pending"); //todo: This message be specific for the job tag.
-            }
+
+            console.log("Sleeping.");
+            console.log("Waiting for next job.");
+            await this.waitForOneEvent("jobs-pending");
         }
     }
     
