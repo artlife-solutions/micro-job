@@ -234,7 +234,6 @@ class MicroJob extends MicroService implements IMicroJob {
                 }
             }
 
-            console.log("Sleeping.");
             console.log("Waiting for next job.");
             await this.waitForOneEvent("jobs-pending");
         }
