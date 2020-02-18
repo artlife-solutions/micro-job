@@ -195,6 +195,8 @@ class MicroJob extends MicroService implements IMicroJob {
         }
 
         await retry(() => this.request.post("job-queue", "/register-jobs", registerJobsArgs), 10, 1000);
+
+        this.jobList.push(jobDetails as any);
     }
 
     //
