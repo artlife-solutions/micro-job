@@ -201,7 +201,7 @@ class MicroJob extends MicroService implements IMicroJob {
     // Start processing jobs.
     //
     private async processJobs(): Promise<void> {
-        console.log("Commencing job processing loop.");
+        console.log(`Commencing job processing loop with ${this.jobList.length} registered jobs.`);
 
         if (this.jobList.length === 0) {
             throw new Error("No jobs registered with micro-job!");
