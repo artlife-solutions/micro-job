@@ -255,6 +255,10 @@ class MicroJob extends MicroService implements IMicroJob {
 
         console.log("Starting job processing.");
 
+        if (this.jobList.length === 0) {
+            throw new Error("No jobs registered with micro-job!");
+        }
+
         //TODO: Should have a retry forever function. Need to report an error if can't connect after 5 minutes, also want to exponentially back off.
         retry(() => this.processJobs(), 10000, 1000 * 60)
             .catch(err => {
