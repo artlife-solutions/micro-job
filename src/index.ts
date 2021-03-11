@@ -123,7 +123,7 @@ export interface IMicroJob extends IMicroService {
      * 
      * @param jobName The name of the job.
      */
-    registerJob<JobT>(jobDetails: IJobDetails<JobT>): Promise<void>;
+    registerJob<JobDetailsT extends IJobDetails<IJob>>(jobDetails: JobDetailsT): Promise<void>;
 
 }
 
@@ -182,7 +182,7 @@ class MicroJob extends MicroService implements IMicroJob {
      * 
      * @param jobName The name of the job.
      */
-    async registerJob<JobT>(jobDetails: IJobDetails<JobT>): Promise<void> {
+    async registerJob<JobDetailsT extends IJobDetails<IJob>>(jobDetails: JobDetailsT): Promise<void> {
         if (this.started) {
             throw new Error(`Please register jobs before calling the 'start' function.`);
         }
