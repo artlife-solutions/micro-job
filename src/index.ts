@@ -123,8 +123,16 @@ export interface IMicroJob extends IMicroService {
      * 
      * @param jobName The name of the job.
      */
-    registerJob<JobDetailsT extends IJobDetails<IJob>>(jobDetails: JobDetailsT): Promise<void>;
+    registerJob(jobDetails: IJobDetails<IJob>): Promise<void>;
 
+    /**
+     * Register a function to process an asset-based job.
+     * 
+     * This function will be called automatically when pending jobs are available in the job queue.
+     * 
+     * @param jobName The name of the job.
+     */
+    registerAssetJob(jobDetails: IAssetJobDetails): Promise<void>;
 }
 
 //
@@ -182,7 +190,30 @@ class MicroJob extends MicroService implements IMicroJob {
      * 
      * @param jobName The name of the job.
      */
-    async registerJob<JobDetailsT extends IJobDetails<IJob>>(jobDetails: JobDetailsT): Promise<void> {
+    async registerJob(jobDetails: IJobDetails<IJob>): Promise<void> {
+        if (this.started) {
+            throw new Error(`Please register jobs before calling the 'start' function.`);
+        }
+
+        jobDetails = Object.assign({}, jobDetails);
+        jobDetails.serviceName = this.getServiceName();
+
+        const registerJobsArgs: IRegisterAssetJobsArgs = {
+            jobs: [ jobDetails as any as IJobDetails<IJob> ],
+        }
+
+        await retry(() => this.request.post("job-queue", "/register-jobs", registerJobsArgs), 10, 1000);
+
+        this.jobList.push(jobDetails as any);
+    }
+
+    /**
+     * Register a function to process an asset based job.
+     * This function will be called automatically when pending jobs are available in the job queue.
+     * 
+     * @param jobName The name of the job.
+     */
+    async registerAssetJob(jobDetails: IAssetJobDetails): Promise<void> {
         if (this.started) {
             throw new Error(`Please register jobs before calling the 'start' function.`);
         }
