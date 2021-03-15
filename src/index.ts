@@ -6,6 +6,8 @@ import { MicroService, IMicroServiceConfig, IMicroService, retry } from "@artlif
 
 const inProduction = process.env.NODE_ENV === "production";
 
+const JOB_QUEUE_HOST = process.env.JOB_QUEUE as string || "job-queue";
+
 //
 // Arguments to the register-jobs REST API.
 //
@@ -202,7 +204,7 @@ class MicroJob extends MicroService implements IMicroJob {
             jobs: [ jobDetails as any as IJobDetails<IJob> ],
         }
 
-        await retry(() => this.request.post("job-queue", "/register-jobs", registerJobsArgs), 10, 1000);
+        await retry(() => this.request.post(JOB_QUEUE_HOST, "/register-jobs", registerJobsArgs), 10, 1000);
 
         this.jobList.push(jobDetails as any);
     }
@@ -225,7 +227,7 @@ class MicroJob extends MicroService implements IMicroJob {
             jobs: [ jobDetails as any as IJobDetails<IJob> ],
         }
 
-        await retry(() => this.request.post("job-queue", "/register-jobs", registerJobsArgs), 10, 1000);
+        await retry(() => this.request.post(JOB_QUEUE_HOST, "/register-jobs", registerJobsArgs), 10, 1000);
 
         this.jobList.push(jobDetails as any);
     }
@@ -244,7 +246,7 @@ class MicroJob extends MicroService implements IMicroJob {
             for (const jobDetails of this.jobList) {
                 console.log("Requesting next job.");
                 const route = `/request-job?job=${jobDetails.jobName}&service=${this.getServiceName()}&id=${this.getInstanceId()}`;
-                const response = await retry(() => this.request.get("job-queue", route), 10, 1000);
+                const response = await retry(() => this.request.get(JOB_QUEUE_HOST, route), 10, 1000);
                 const requestJobResult: IRequestJobResult = response.data;                
                 if (requestJobResult.ok) {
                     console.log("Have a job to do.");
